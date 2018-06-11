@@ -76,7 +76,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\admin\Documents\project\AdvCodeLib\tp15765\include;C:\Users\admin\Documents\project\AdvCodeLib\tp15765\cfg;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\admin\Documents\project\AdvCodeLib\tp15765\vs_proj\tp_vs_proj\cantp\include;C:\Users\admin\Documents\project\AdvCodeLib\tp15765\vs_proj\tp_vs_proj\cantp\cfg;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -116,18 +116,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\src\can_driver_callout.c" />
-    <ClCompile Include="..\..\..\src\can_link_if.c" />
-    <ClCompile Include="..\..\..\src\can_tp.c" />
-    <ClCompile Include="..\..\..\src\can_tp_cfg.c" />
-    <ClCompile Include="..\..\..\src\tp_ul_if.c" />
+    <ClCompile Include="..\cantp\src\can_driver_callout.c" />
+    <ClCompile Include="..\cantp\src\can_link_if.c" />
+    <ClCompile Include="..\cantp\src\can_tp.c" />
+    <ClCompile Include="..\cantp\src\can_tp_cfg.c" />
+    <ClCompile Include="..\cantp\src\tp_ul_if.c" />
     <ClCompile Include="main.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\include\can_tp.h" />
-    <ClInclude Include="..\..\..\include\can_tp_cfg.h" />
-    <ClInclude Include="..\..\..\include\std_types.h" />
-    <ClInclude Include="..\..\..\include\tp_ul_if.h" />
+    <ClInclude Include="..\cantp\include\can_tp.h" />
+    <ClInclude Include="..\cantp\include\can_tp_cfg.h" />
+    <ClInclude Include="..\cantp\include\std_types.h" />
+    <ClInclude Include="..\cantp\include\tp_ul_if.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

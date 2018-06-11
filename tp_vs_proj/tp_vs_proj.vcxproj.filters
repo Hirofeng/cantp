@@ -18,33 +18,33 @@
     <ClCompile Include="main.c">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\can_driver_callout.c">
+    <ClCompile Include="..\cantp\src\can_driver_callout.c">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\can_tp.c">
+    <ClCompile Include="..\cantp\src\can_link_if.c">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\can_link_if.c">
+    <ClCompile Include="..\cantp\src\can_tp.c">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\can_tp_cfg.c">
+    <ClCompile Include="..\cantp\src\can_tp_cfg.c">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\tp_ul_if.c">
+    <ClCompile Include="..\cantp\src\tp_ul_if.c">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\include\std_types.h">
+    <ClInclude Include="..\cantp\include\can_tp.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\include\can_tp_cfg.h">
+    <ClInclude Include="..\cantp\include\can_tp_cfg.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\include\can_tp.h">
+    <ClInclude Include="..\cantp\include\std_types.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\include\tp_ul_if.h">
+    <ClInclude Include="..\cantp\include\tp_ul_if.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
