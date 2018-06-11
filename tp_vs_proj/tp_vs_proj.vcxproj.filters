@@ -13,11 +13,14 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="源文件\test">
+      <UniqueIdentifier>{5f9984dc-7a27-4cea-b9dc-989bb1ff9a46}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="源文件\unity">
+      <UniqueIdentifier>{6fa99eb1-edc6-4e6f-a103-5f79c220c49a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.c">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="..\cantp\src\can_driver_callout.c">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -33,6 +36,21 @@
     <ClCompile Include="..\cantp\src\tp_ul_if.c">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\..\unity\Unity-master\src\unity.c">
+      <Filter>源文件\unity</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\..\unity\Unity-master\extras\fixture\src\unity_fixture.c">
+      <Filter>源文件\unity</Filter>
+    </ClCompile>
+    <ClCompile Include="..\cantp\test\test_runners\all_tests.c">
+      <Filter>源文件\test</Filter>
+    </ClCompile>
+    <ClCompile Include="..\cantp\test\test_runners\TestProductionCode_Runner.c">
+      <Filter>源文件\test</Filter>
+    </ClCompile>
+    <ClCompile Include="..\cantp\test\TestSingleFrameCode.c">
+      <Filter>源文件\test</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\cantp\include\can_tp.h">
@@ -46,6 +64,9 @@
     </ClInclude>
     <ClInclude Include="..\cantp\include\tp_ul_if.h">
       <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\cantp\test\test_code_interface.h">
+      <Filter>源文件\test</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
