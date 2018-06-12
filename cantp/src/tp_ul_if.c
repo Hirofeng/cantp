@@ -114,6 +114,10 @@
 
 #define TMP_DCM_RX_BUF_SIZE   5000
 #define TMP_DCM_TX_BUF_SIZE   6000
+
+#define AVAILABLE_RX_BUL_SIZE  30
+
+
 U8  dcm_rx_buf[TMP_DCM_RX_BUF_SIZE] = {0};
 U32 dcm_rx_buf_idx = 0;
 
@@ -130,8 +134,10 @@ U8 dcm_tmp_request_rx_buffer(U32 total_size, U32* buffer_size_ptr)
 	if (total_size <= TMP_DCM_RX_BUF_SIZE)
 	{
 		dcm_rx_buf_idx = 0;
-		*buffer_size_ptr = TMP_DCM_RX_BUF_SIZE - dcm_rx_buf_idx;
 		
+		if (buffer_size_ptr != NULL_PTR)
+			//*buffer_size_ptr = TMP_DCM_RX_BUF_SIZE - dcm_rx_buf_idx;
+			*buffer_size_ptr = AVAILABLE_RX_BUL_SIZE;
 	}
 	else
 	{
@@ -149,21 +155,32 @@ U8 dcm_tmp_request_rx_buffer(U32 total_size, U32* buffer_size_ptr)
 U8 dcm_tmp_copy_rx_data(const U8 * sdu_ptr, U32 sdu_len, U32* remain_buf_size_ptr)
 {
 	U32 i;
-	for (i = 0; i < sdu_len; i++)
+
+	if (sdu_len)
 	{
-		dcm_rx_buf[i + dcm_rx_buf_idx] = *(sdu_ptr + i);
-		
-	}
-	dcm_rx_buf_idx += sdu_len;
-	if (dcm_rx_buf_idx < TMP_DCM_RX_BUF_SIZE)
-	{
-		*remain_buf_size_ptr = TMP_DCM_RX_BUF_SIZE - dcm_rx_buf_idx;
+
+		for (i = 0; i < sdu_len; i++)
+		{
+			dcm_rx_buf[i + dcm_rx_buf_idx] = *(sdu_ptr + i);
+
+		}
+		dcm_rx_buf_idx += sdu_len;
+#if 0
+		if (dcm_rx_buf_idx < TMP_DCM_RX_BUF_SIZE)
+		{
+			*remain_buf_size_ptr = TMP_DCM_RX_BUF_SIZE - dcm_rx_buf_idx;
+		}
+		else
+		{
+			*remain_buf_size_ptr = 0;
+		}
+#endif
 	}
 	else
 	{
-		*remain_buf_size_ptr = 0;
-	}
+		*remain_buf_size_ptr = AVAILABLE_RX_BUL_SIZE;
 
+	}
 	return CANTP_E_OK;
 }
 
@@ -200,16 +217,16 @@ void dcm_tmp_rx_indication(U8 rx_result)
 
 }
 
-U8  dcm_tmp_coyp_tx_data(U8* tx_buf_ptr, U32 tx_data_size, U32* remain_tx_buf_size_ptr)
+U8  dcm_tmp_coyp_tx_data(U8* tx_buf_ptr, U32 len, U32* remain_tx_buf_size_ptr)
 {
 	U8 result;
 
-	if ((dcm_req_data_size - dcm_tx_buf_idx) >= tx_data_size)
+	if ((dcm_req_data_size - dcm_tx_buf_idx) >= len)
 	{
 
-		memcpy((U8*)tx_buf_ptr, (U8*)(dcm_tx_buf + dcm_tx_buf_idx), tx_data_size);
+		memcpy((U8*)tx_buf_ptr, (U8*)(dcm_tx_buf + dcm_tx_buf_idx), len);
 
-		dcm_tx_buf_idx += tx_data_size;
+		dcm_tx_buf_idx += len;
 		if (remain_tx_buf_size_ptr != NULL_PTR)
 		{
 			*remain_tx_buf_size_ptr = dcm_req_data_size - dcm_tx_buf_idx;

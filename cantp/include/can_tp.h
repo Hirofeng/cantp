@@ -59,10 +59,11 @@
 #define CANTP_E_NOT_OK       0u
 
 
-#define CANTP_R_OK           0u
-#define CANTP_R_ERROR		 1u
-#define CANTP_R_TIMEOUT_A    2u
-#define  CANTP_R_TIMEOUT_BS   3u
+#define CANTP_R_OK             0u
+#define CANTP_R_ERROR		   1u
+#define CANTP_R_TIMEOUT_A      2u
+#define  CANTP_R_TIMEOUT_BS    3u
+#define CANTP_R_WRONG_SN       4u
 
 
 /**********************************************************************************************************************

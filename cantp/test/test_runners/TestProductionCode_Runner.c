@@ -14,6 +14,6 @@ TEST_GROUP_RUNNER(TpSingleFrame)
 
 TEST_GROUP_RUNNER(TpMultiFrame)
 {
-	//RUN_TEST_CASE(TpMultiFrame, TestMultiFrameReception); 
-	RUN_TEST_CASE(TpMultiFrame, TestMultiFrameTransmission);
+	RUN_TEST_CASE(TpMultiFrame, TestMultiFrameReception); 
+	//RUN_TEST_CASE(TpMultiFrame, TestMultiFrameTransmission);
 }

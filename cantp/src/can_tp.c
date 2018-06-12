@@ -64,8 +64,13 @@ typedef enum
 	TP_CONN_WAIT_FF_TX,
 	TP_CONN_WAIT_FF_TX_CONFIRM,
 	TP_CONN_WAIT_FC_RX,
+    TP_CONN_WAIT_FC_TX,
+	TP_CONN_WAIT_FC_TX_CONFIRM,
+
 	TP_CONN_WAIT_CF_TX,
+	TP_CONN_WAIT_CF_RX,
 	TP_CONN_WAIT_CF_TX_CONFIRM,
+	TP_CONN_WAIT_FF_RX,
 
 
 }
@@ -110,6 +115,7 @@ tp_conn_state_type;
 #define FS_WAIT						   1u
 #define FS_OVFLW                       2u
 
+#define ST_MIN_DEFAULT                 MAIN_FUNC_PERIOD 
 
 
 /*----------Macro function-----------*/
@@ -128,8 +134,8 @@ tp_conn_state_type;
 /*Type of module internal buffer for CAN frame.*/
 typedef struct
 {
-	U8 tx_buffer[64];
-	U8 tx_data_size;
+	U8 buffer[64];
+	U8 len;
 }
 inter_buf_type;
 
@@ -155,6 +161,9 @@ typedef struct
 	U32  remaining_data_size;   //Remaining data size that has not been received or transmitted.
 	U8   cf_count;               //cf_count records consecutive frame number whitch can be used to calc.SN value.
 	U8   st_coordinator;
+	U32  ul_rx_buf_size;
+	U8   flow_status;
+
 }flow_control_param_type;
 
 /*Active tp connection task type.It is used in multi-frames RX and TX.*/
@@ -169,6 +178,9 @@ typedef struct
 	flow_control_param_type   fc_param;
 
 	U8                        tx_copy_retry;
+
+	inter_buf_type            rx_buffer;
+	U8                        RX_DL;
 }
 tp_conn_type;
 
@@ -213,6 +225,7 @@ STATIC  U8 tp_sf_rx_handle(U8 channel_idx, U8 dlc, U8* pci_ptr);
 STATIC  U8 get_channel_idx_by_channel_id(U8 channel_id);
 STATIC  U8 get_idle_conn(void);
 STATIC  U8 get_active_conn_idx_by_channel_idx(U8 channel_idx);
+STATIC  U8 tp_cf_rx_handle(U8 channel_idx, U8 conn_idx, U8* sdu_ptr, U8 sdu_size);
 /***********************************************************************************************************************
 | NAME:  XXX_example()
 **********************************************************************************************************************/
@@ -281,6 +294,7 @@ void cantp_main_function(void)
 	U8 result, tmp_ext_addr_flag;
 	U8 ff_sdu_data_size;
 	U8 sdu_data_offset;
+	BOOL  rx_buf_ov_flg = 0;
 
 	/*-------------Polling Rx------------------------*/
 	//TODO: if cycle polling rx mode is enable, add polling handle funciton here.
@@ -296,7 +310,7 @@ void cantp_main_function(void)
 		{
 		case TP_CONN_WAIT_SF_TX:
 	
-			result = tp_channel_ref[channel_idx].copy_tx_data_func(segment_tx_buffer.tx_buffer, cantp_conn_cb[i].sdu_data_size,NULL_PTR);
+			result = tp_channel_ref[channel_idx].copy_tx_data_func(segment_tx_buffer.buffer, cantp_conn_cb[i].sdu_data_size,NULL_PTR);
 			
 			if (result == CANTP_E_OK)
 			{
@@ -305,7 +319,7 @@ void cantp_main_function(void)
 				/*Start timer As*/
 				cantp_conn_cb[i].timer.A = 0;
 
-				can_fmr_tx_callout(tp_channel_ref[channel_idx].can_id, segment_tx_buffer.tx_buffer, cantp_conn_cb[i].sdu_data_size);
+				can_fmr_tx_callout(tp_channel_ref[channel_idx].can_id, segment_tx_buffer.buffer, cantp_conn_cb[i].sdu_data_size);
 			}
 			else
 			{
@@ -313,6 +327,7 @@ void cantp_main_function(void)
 				tp_channel_ref[channel_idx].tx_confirmation_func(CANTP_R_ERROR);
 			}
 			break;
+		//case TP_CONN_WAIT_FC_TX_CONFIRM:
 		case TP_CONN_WAIT_CF_TX_CONFIRM:
 		case TP_CONN_WAIT_FF_TX_CONFIRM:
 		case TP_CONN_WAIT_SF_TX_CONFIRM:
@@ -338,8 +353,8 @@ void cantp_main_function(void)
 				ff_sdu_data_size = 6 - tp_channel_ref[channel_idx].ext_addr_flag;
 
 				/*TX_DL=8, FF pci format*/
-				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag] = ((cantp_conn_cb[i].sdu_data_size & 0x0F00) >> 8)| 0x10;
-				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag + 1] = cantp_conn_cb[i].sdu_data_size & 0xFF;
+				segment_tx_buffer.buffer[tp_channel_ref[channel_idx].ext_addr_flag] = ((cantp_conn_cb[i].sdu_data_size & 0x0F00) >> 8)| 0x10;
+				segment_tx_buffer.buffer[tp_channel_ref[channel_idx].ext_addr_flag + 1] = cantp_conn_cb[i].sdu_data_size & 0xFF;
 
 				sdu_data_offset = 2 + tp_channel_ref[channel_idx].ext_addr_flag;
 			}
@@ -348,19 +363,19 @@ void cantp_main_function(void)
 				ff_sdu_data_size = tp_channel_ref[channel_idx].TX_DL - tp_channel_ref[channel_idx].ext_addr_flag-6;
 
 				/*TX_DL>8, FF pci format*/
-				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag] = 0x10;
-				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag+1] = 0x00;
-				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag + 2] = (cantp_conn_cb[i].sdu_data_size & 0xFF000000)>>24;
-				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag + 3] = (cantp_conn_cb[i].sdu_data_size & 0x00FF0000) >> 16;
-				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag + 4] = (cantp_conn_cb[i].sdu_data_size & 0x0000FF00) >> 8;
-				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag + 5] = (cantp_conn_cb[i].sdu_data_size & 0x000000FF) ;
+				segment_tx_buffer.buffer[tp_channel_ref[channel_idx].ext_addr_flag] = 0x10;
+				segment_tx_buffer.buffer[tp_channel_ref[channel_idx].ext_addr_flag+1] = 0x00;
+				segment_tx_buffer.buffer[tp_channel_ref[channel_idx].ext_addr_flag + 2] = (cantp_conn_cb[i].sdu_data_size & 0xFF000000)>>24;
+				segment_tx_buffer.buffer[tp_channel_ref[channel_idx].ext_addr_flag + 3] = (cantp_conn_cb[i].sdu_data_size & 0x00FF0000) >> 16;
+				segment_tx_buffer.buffer[tp_channel_ref[channel_idx].ext_addr_flag + 4] = (cantp_conn_cb[i].sdu_data_size & 0x0000FF00) >> 8;
+				segment_tx_buffer.buffer[tp_channel_ref[channel_idx].ext_addr_flag + 5] = (cantp_conn_cb[i].sdu_data_size & 0x000000FF) ;
 				sdu_data_offset = 6 + tp_channel_ref[channel_idx].ext_addr_flag;
 			}
 
 			cantp_conn_cb[i].fc_param.remaining_data_size = cantp_conn_cb[i].sdu_data_size - ff_sdu_data_size;
 			cantp_conn_cb[i].fc_param.cf_count = 1;
 
-			result = tp_channel_ref[channel_idx].copy_tx_data_func(segment_tx_buffer.tx_buffer+ sdu_data_offset, ff_sdu_data_size, NULL_PTR);
+			result = tp_channel_ref[channel_idx].copy_tx_data_func(segment_tx_buffer.buffer+ sdu_data_offset, ff_sdu_data_size, NULL_PTR);
 
 			if (result == CANTP_E_OK)
 			{
@@ -368,7 +383,7 @@ void cantp_main_function(void)
 				cantp_conn_cb[i].conn_state = TP_CONN_WAIT_FF_TX_CONFIRM;
 				/*Start timer As*/
 				cantp_conn_cb[i].timer.B = 0;
-				can_fmr_tx_callout(tp_channel_ref[channel_idx].can_id, segment_tx_buffer.tx_buffer, tp_channel_ref[channel_idx].TX_DL);
+				can_fmr_tx_callout(tp_channel_ref[channel_idx].can_id, segment_tx_buffer.buffer, tp_channel_ref[channel_idx].TX_DL);
 			}
 			else
 			{
@@ -421,22 +436,22 @@ void cantp_main_function(void)
 				else
 				{
 					tmp_data_size = cantp_conn_cb[i].fc_param.remaining_data_size;
-					memset(segment_tx_buffer.tx_buffer, PADDING_BYTE, tp_channel_ref[channel_idx].TX_DL);
+					memset(segment_tx_buffer.buffer, PADDING_BYTE, tp_channel_ref[channel_idx].TX_DL);
 
 					/*Last CF*/
 				}
-				result = tp_channel_ref[channel_idx].copy_tx_data_func(segment_tx_buffer.tx_buffer + 1 + tmp_ext_addr_flag, tmp_data_size, NULL_PTR);
+				result = tp_channel_ref[channel_idx].copy_tx_data_func(segment_tx_buffer.buffer + 1 + tmp_ext_addr_flag, tmp_data_size, NULL_PTR);
 
 				if (result == CANTP_E_OK)
 				{
-					segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag] = cantp_conn_cb[i].fc_param.cf_count % 16 | 0x20;
+					segment_tx_buffer.buffer[tp_channel_ref[channel_idx].ext_addr_flag] = cantp_conn_cb[i].fc_param.cf_count % 16 | 0x20;
 
 					cantp_conn_cb[i].fc_param.cf_count++;
 					cantp_conn_cb[i].fc_param.remaining_data_size -= tmp_data_size;
 
 					cantp_conn_cb[i].conn_state = TP_CONN_WAIT_CF_TX_CONFIRM;
 					cantp_conn_cb[i].timer.A = 0;
-					can_fmr_tx_callout(tp_channel_ref[channel_idx].can_id, segment_tx_buffer.tx_buffer, tp_channel_ref[channel_idx].TX_DL);
+					can_fmr_tx_callout(tp_channel_ref[channel_idx].can_id, segment_tx_buffer.buffer, tp_channel_ref[channel_idx].TX_DL);
 
 
 				}
@@ -452,6 +467,89 @@ void cantp_main_function(void)
 			}
 		}
 			break;
+		case TP_CONN_WAIT_FF_RX:
+		{
+			U32  available_rx_buf_size = 0;
+			U8   rx_buf_req_result;
+			rx_buf_req_result = tp_channel_ref[channel_idx].req_rx_buf_func(cantp_conn_cb[i].sdu_data_size,&available_rx_buf_size);
+
+			if (rx_buf_req_result == CANTP_E_OK)
+			{
+				rx_buf_ov_flg = 0;
+
+				cantp_conn_cb[i].fc_param.ul_rx_buf_size = available_rx_buf_size;
+
+				tp_channel_ref[channel_idx].copy_rx_data_func(cantp_conn_cb[i].rx_buffer.buffer, cantp_conn_cb[i].rx_buffer.len, &available_rx_buf_size);
+
+				cantp_conn_cb[i].fc_param.ul_rx_buf_size = available_rx_buf_size;
+				cantp_conn_cb[i].fc_param.remaining_data_size = cantp_conn_cb[i].sdu_data_size - cantp_conn_cb[i].rx_buffer.len;
+
+				cantp_conn_cb[i].fc_param.cf_count = 1; 
+
+				cantp_conn_cb[i].conn_state = TP_CONN_WAIT_FC_TX;
+			}
+			else
+			{
+				rx_buf_ov_flg = 1;
+			}
+
+		}
+		//	break;
+
+		case TP_CONN_WAIT_FC_TX:
+
+		{
+			U8 block_size;
+			U8 flow_status = FS_CTS;
+			U32 available_rx_buf_size = 0;
+			if (rx_buf_ov_flg == 1)
+			{
+				//TODO : Rx buffer overflow
+				cantp_conn_cb[i].fc_param.block_size = 0;
+				flow_status = FS_OVFLW;
+			}
+			else
+			{
+				if (cantp_conn_cb[i].fc_param.ul_rx_buf_size == 0)
+				{
+
+					tp_channel_ref[channel_idx].copy_rx_data_func(NULL_PTR, 0, &available_rx_buf_size);
+
+					if (available_rx_buf_size < (cantp_conn_cb[i].RX_DL - 1))
+					{
+						flow_status = FS_WAIT;
+					}
+					else
+					{
+					
+					
+					}
+
+					cantp_conn_cb[i].fc_param.ul_rx_buf_size = available_rx_buf_size;
+				}
+				
+				if (cantp_conn_cb[i].fc_param.ul_rx_buf_size >= cantp_conn_cb[i].fc_param.remaining_data_size)
+				{
+					cantp_conn_cb[i].fc_param.block_size = 0;
+				}
+				else
+				{
+					cantp_conn_cb[i].fc_param.block_size = (cantp_conn_cb[i].fc_param.ul_rx_buf_size) / (cantp_conn_cb[i].RX_DL - 1);
+				}
+			}
+			segment_tx_buffer.buffer[tmp_ext_addr_flag] = 0x30 | flow_status;
+			segment_tx_buffer.buffer[tmp_ext_addr_flag + 1] = cantp_conn_cb[i].fc_param.block_size;
+			segment_tx_buffer.buffer[tmp_ext_addr_flag + 2] = ST_MIN_DEFAULT;
+			cantp_conn_cb[i].conn_state = TP_CONN_WAIT_FC_TX_CONFIRM;
+			cantp_conn_cb[i].fc_param.flow_status = flow_status;
+		
+			can_fmr_tx_callout(tp_channel_ref[channel_idx].can_id, segment_tx_buffer.buffer+ tmp_ext_addr_flag, tp_channel_ref[channel_idx].TX_DL);
+
+
+		}
+
+
+
 
 		default:
 			break;
@@ -609,6 +707,22 @@ void cantp_tx_confirmation(U32 canid, U8 result)
 		{
 			cantp_conn_cb[conn_idx].conn_state = TP_CONN_WAIT_CF_TX;
 		}
+	}
+	else if (*tmp_conn_state_ptr == TP_CONN_WAIT_FC_TX_CONFIRM)
+	{
+
+		if (cantp_conn_cb[conn_idx].fc_param.flow_status == FS_OVFLW)
+		{
+
+		}
+		else if (cantp_conn_cb[conn_idx].fc_param.flow_status == FS_CTS)
+		{
+			cantp_conn_cb[conn_idx].conn_state = TP_CONN_WAIT_CF_RX;
+		}
+		else if (cantp_conn_cb[conn_idx].fc_param.flow_status == FS_WAIT)
+		{
+
+		}
 
 
 	}
@@ -640,6 +754,12 @@ void  cantp_rx_indication(U32 canid, U8 dlc, U8* data_ptr)
 	U8 channel_idx = 0;
 	U8 active_conn_idx;
 	U8 flow_status;
+	U32 tmp_ff_dl;
+	U8  rx_buf_req_result;
+	U8  pci_size;
+	U8  sn;
+	
+
 #ifndef  CANTP_FLEX_DATA_RATE_SUPPORTED 
 
 	if (dlc > 8)
@@ -665,12 +785,95 @@ void  cantp_rx_indication(U32 canid, U8 dlc, U8* data_ptr)
 	}
 	else if (pci_type ==  PCI_FF)
 	{
+		if (dlc < 8)
+		{
+		
+		}
+		else
+		{
+			if (((*(data_ptr + pci_offset)) == 0x10) && ((*(data_ptr + pci_offset + 1) == 0)))
+			{
+				tmp_ff_dl = ((*(data_ptr + pci_offset + 2)) << 24 )| \
+					(*(data_ptr + pci_offset + 3) << 16) | \
+					((*(data_ptr + pci_offset + 4)) << 8) | \
+						*(data_ptr + pci_offset + 5);
 
+				pci_size = 6;
+			}
+			else
+			{
+				tmp_ff_dl = (((*(data_ptr + pci_offset)) & 0x0F) << 8) | (*(data_ptr + pci_offset + 1));
+				pci_size = 2;
+			}
+
+			 active_conn_idx = get_active_conn_idx_by_channel_idx(channel_idx);
+
+			 if (active_conn_idx == INVALID_CONNECTION_INDEX)
+			 {
+				 /*Current channel is not occupied.A new conn has to be actived for multi frame reception.*/
+				 active_conn_idx = get_idle_conn();
+				 if (active_conn_idx == INVALID_CONNECTION_INDEX)
+				 {
+					 /*No available conn ,ignore the FF*/
+					 return;
+				 }
+				 else
+				 {
+
+				 }
+			 }
+			 else
+			 {
+				 /*Current channel is occupied and has to be canceled for new connection.*/
+				 RELEAS_CONNECTION(active_conn_idx);
+			 }
+			 cantp_conn_cb[active_conn_idx].sdu_data_size = tmp_ff_dl;
+			 cantp_conn_cb[active_conn_idx].RX_DL = GET_CAN_DATA_LEN_BY_COMP_TBL(dlc);
+
+
+			 /*Copy FF sdu data to inner buffer*/
+			 cantp_conn_cb[active_conn_idx].rx_buffer.len = cantp_conn_cb[active_conn_idx].RX_DL - (pci_size + pci_offset);
+			 memcpy((U8*)cantp_conn_cb[active_conn_idx].rx_buffer.buffer, (U8*)(data_ptr + pci_size + pci_offset), cantp_conn_cb[active_conn_idx].rx_buffer.len);
+
+			 cantp_conn_cb[active_conn_idx].conn_state = TP_CONN_WAIT_FF_RX;
+			
+		}
 
 
 	}
 	else if (pci_type == PCI_CF)
 	{
+		sn = *(data_ptr + pci_offset) & 0x0F;
+		active_conn_idx = get_active_conn_idx_by_channel_idx(channel_idx);
+
+		if (cantp_conn_cb[active_conn_idx].conn_state == TP_CONN_WAIT_CF_RX)
+		{
+
+			if ( (INVALID_CONNECTION_INDEX != active_conn_idx) && \
+				(sn == (cantp_conn_cb[active_conn_idx].fc_param.cf_count % 16)))
+			{
+				//cantp_conn_cb[active_conn_idx].rx_buffer.len = cantp_conn_cb[active_conn_idx].RX_DL - 1 - pci_offset;
+				//memcpy((U8*)cantp_conn_cb[active_conn_idx].rx_buffer.buffer, (U8*)(data_ptr + 1 + pci_offset), cantp_conn_cb[active_conn_idx].rx_buffer.len);
+				
+				//(cantp_conn_cb[active_conn_idx].RX_DL == rx_data_len)
+				//if(cantp_conn_cb[active_conn_idx].fc_param.remaining_data_size > )
+				//TODO: check RX_DL
+
+				tp_cf_rx_handle(channel_idx, active_conn_idx, data_ptr + pci_offset + 1, rx_data_len - pci_offset-1);
+
+
+			}
+			else
+			{
+				RELEAS_CONNECTION(active_conn_idx);
+				cantp_channel_cfgs[channel_idx].rx_indication_func(CANTP_R_WRONG_SN);
+			}
+		}
+		else
+		{
+			//Unexpected CF received,ignore it.
+
+		}
 
 	}
 	else if (pci_type == PCI_FC)
@@ -835,6 +1038,57 @@ STATIC U8 tp_sf_rx_handle(U8 channel_idx, U8 dlc, U8* pci_ptr)
 
 }
 
+
+
+STATIC U8 tp_cf_rx_handle(U8 channel_idx,U8 conn_idx,U8* sdu_ptr, U8 sdu_size)
+{
+	BOOL ext_addr_flg;
+	U8 tmp_sdu_size;
+
+	ext_addr_flg = cantp_channel_cfgs[channel_idx].ext_addr_flag;
+
+	
+
+	if (cantp_conn_cb[conn_idx].fc_param.remaining_data_size > (cantp_conn_cb[conn_idx].RX_DL - ext_addr_flg - 1))
+	{
+		//Not last CF
+
+		tmp_sdu_size = cantp_conn_cb[conn_idx].RX_DL - ext_addr_flg - 1;
+
+		cantp_conn_cb[conn_idx].fc_param.remaining_data_size -= tmp_sdu_size;
+
+		cantp_channel_cfgs[channel_idx].copy_rx_data_func(sdu_ptr, sdu_size, NULL_PTR);
+
+		cantp_conn_cb[conn_idx].fc_param.cf_count++;
+
+		if (cantp_conn_cb[conn_idx].fc_param.block_size)
+		{
+			cantp_conn_cb[conn_idx].fc_param.block_size--;
+
+			if (!cantp_conn_cb[conn_idx].fc_param.block_size)
+			{
+				cantp_conn_cb[conn_idx].fc_param.ul_rx_buf_size = 0;
+				cantp_conn_cb[conn_idx].conn_state = TP_CONN_WAIT_FC_TX;
+			}
+		}
+
+	}
+	else
+	{
+		/*Last CF*/
+		tmp_sdu_size = cantp_conn_cb[conn_idx].fc_param.remaining_data_size;
+		cantp_channel_cfgs[channel_idx].copy_rx_data_func(sdu_ptr, tmp_sdu_size, NULL_PTR);
+
+		RELEAS_CONNECTION(conn_idx);
+		/*Indicate to upper layer that multi frame reception success!*/
+		cantp_channel_cfgs[channel_idx].rx_indication_func(CANTP_R_OK);  
+
+	}
+
+
+
+
+}
 
 STATIC U8 get_channel_idx_by_canid(U32  canid)
 {

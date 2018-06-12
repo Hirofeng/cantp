@@ -113,17 +113,38 @@ TEST(TpMultiFrame, TestMultiFrameTransmission)
 }
 TEST(TpMultiFrame, TestMultiFrameReception)
 {
-	U32 i = 202;
-	//1.请求多帧发送,data size = 20
-	dcm_tmp_transmit_response(20);
-	//2.发送第一帧 FF
-	cantp_main_function();
-	//3.等待接收者发送流控帧,接收者超时未发送FC帧
-	while (i--)
-	{
-		cantp_main_function();
-	}
+	U8 cf_1[8] = {0x21,7,8,9,10,11,12,13};
+	U8 cf_2[8] = { 0x22,14,15,16,17,18,19,20 };
+	U8 cf_3[8] = { 0x23,21,22,23,24,25,26,27 };
+	U8 cf_4[8] = { 0x24,28,29,30,31,32,33,34 };
+	U8 cf_5[8] = { 0x25,35,36,37,38,39,40,41 };
+	U8 cf_6[8] = { 0x26,42,43,44,45,46,47,48 };
+	U8 cf_7[8] = { 0x27,49,50,51,52,53,54,55 };
 
+	can_driver_ff_rx_isr_1();
+
+	cantp_main_function();
+	can_driver_cf_rx_isr_1(cf_1,8);
+
+	cantp_main_function();
+	can_driver_cf_rx_isr_1(cf_2, 8);
+
+	cantp_main_function();
+	can_driver_cf_rx_isr_1(cf_3, 8);
+
+	cantp_main_function();
+	can_driver_cf_rx_isr_1(cf_4, 8);
+
+	cantp_main_function();
+	can_driver_cf_rx_isr_1(cf_5, 8);
+
+	cantp_main_function();
+	can_driver_cf_rx_isr_1(cf_6, 8);
+
+	cantp_main_function();
+	can_driver_cf_rx_isr_1(cf_7, 8);
+
+	cantp_main_function();
 
 }
 
