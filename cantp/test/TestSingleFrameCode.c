@@ -5,6 +5,7 @@
 
 
 TEST_GROUP(TpSingleFrame);
+TEST_GROUP(TpMultiFrame);
 
 //sometimes you may want to get at local data in a module.
 //for example: If you plan to pass by reference, this could be useful
@@ -44,6 +45,8 @@ TEST(TpSingleFrame, TestSFTransmission)
 	dcm_tmp_transmit_response(6);
 	
 	cantp_main_function();
+	cantp_main_function();
+	//cantp_main_function();
 
 }
 
@@ -53,6 +56,27 @@ TEST(TpSingleFrame, TestFFTransmission)
 	dcm_tmp_transmit_response(20);
 
 	cantp_main_function();
+}
+
+TEST_SETUP(TpMultiFrame)
+{
+	//This is run before EACH TEST
+	//Counter = 0x5a5a;
+	cantp_init();
+}
+
+TEST_TEAR_DOWN(TpMultiFrame)
+{
+}
+TEST(TpMultiFrame, TestMultiFrameReception)
+{
+	//1.请求多帧发送,data size = 20
+	dcm_tmp_transmit_response(20);
+	//2.发送第一帧 FF
+	cantp_main_function();
+	//3.接收者发送流控帧
+
+
 }
 #if 0
 

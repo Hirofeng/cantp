@@ -3,12 +3,12 @@
 #include "std_types.h"
 
 /*从CAN Driver寄存器内读取缓存的数据帧*/
-#if 0
-void can_fmr_rx_callout(U32* id_ptr, U8* data_ptr)
+
+void can_fmr_rx_callout(U32 can_id, U8* data_ptr,U8 dlc)
 {
-  //TODO
+  
 }
-#endif
+
 
 
 void can_fmr_tx_callout(U32 can_id, U8* data_ptr,U8 data_size)
@@ -44,5 +44,5 @@ void can_fmr_tx_callout(U32 can_id, U8* data_ptr,U8 data_size)
 	printf("\n");
 #endif
 
-	cantp_tx_confirmation(0x720,CANTP_R_OK);
+//	cantp_tx_confirmation(0x720,CANTP_R_OK);
 }

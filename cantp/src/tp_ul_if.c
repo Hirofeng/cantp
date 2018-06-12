@@ -231,23 +231,26 @@ U8  dcm_tmp_coyp_tx_data(U8* tx_buf_ptr, U32 tx_data_size, U32* remain_tx_buf_si
 
 void dcm_tmp_tx_confirmation(U8 result)
 {
-	if (result == CANTP_R_OK)
-	{
+
 #ifdef WIN32_DEBUG
-
-		printf("DCM reponse  transmittion success!");
-
-#endif
-	}
-	else
+	switch (result)
 	{
-#ifdef WIN32_DEBUG
+		case CANTP_R_OK:
 
-		printf("DCM reponse transmittion failed!");
+		printf("DCM transmittion result: CANTP_R_OK !");
+		break;
 
+		case CANTP_R_ERROR:
+		printf("DCM transmittion result: CANTP_R_ERROR !");
+			break;
+
+		case CANTP_R_TIMEOUT_A:
+			printf("DCM transmittion result: CANTP_R_TIMEOUT_A !");
+
+			break;
+	}
 #endif
 
-	}
 }
 
 void dcm_tmp_transmit_response(U32 data_size)

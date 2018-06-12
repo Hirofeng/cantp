@@ -61,14 +61,12 @@ typedef enum
 	TP_CONN_WAIT_SF_TX,
 	TP_CONN_WAIT_SF_TX_CONFIRM,
 	TP_CONN_WAIT_FF_TX,
-	TP_CONN_WAIT_FF_TX_CONFIRM
+	TP_CONN_WAIT_FF_TX_CONFIRM,
+	TP_CONN_WAIT_FC_RX,
 
 }
 tp_conn_state_type;
 
-
-/*----------Macro function-----------*/
-#define GET_CAN_DATA_LEN_BY_COMP_TBL(dlc)     (dlc_comparison_tbl[(dlc)&(0x0F)])  
 
 
 /*----------Macro const-----------*/
@@ -85,6 +83,8 @@ tp_conn_state_type;
 #define INVALID_CHANNEL_ID            INVALID_CHANNEL_INDEX
 #define INVALID_CONNECTION_INDEX      0xFFu
 
+#define TIMER_IDLE_VALUE              (-1)
+
 #define PCI_BYTE_MASK				  0xF0u
 #define PCI_SF                        0x00u
 #define PCI_FF						  0x10u
@@ -98,8 +98,22 @@ tp_conn_state_type;
 
 #define MAX_CONNECTION_NUM             3
 
+#define MAIN_FUNC_PERIOD               5u   //unit:ms
+
+
+/*----------Macro function-----------*/
+#define GET_CAN_DATA_LEN_BY_COMP_TBL(dlc)     (dlc_comparison_tbl[(dlc)&(0x0F)])  
+
+#define RELEAS_CONNECTION(idx)                do{cantp_conn_cb[idx].conn_state = TP_CONN_IDLE;   \
+												 cantp_conn_cb[idx].channel_idx = 0; \
+												 cantp_conn_cb[idx].timer.A = INVALID_CHANNEL_INDEX;  \
+												 cantp_conn_cb[idx].timer.B = INVALID_CHANNEL_INDEX;  \
+                                                 cantp_conn_cb[idx].timer.C = INVALID_CHANNEL_INDEX;  }while(0)
+
 /*----------Local data struct-----------*/
 
+
+/*Type of module internal buffer for CAN frame.*/
 typedef struct
 {
 	U8 tx_buffer[64];
@@ -108,15 +122,29 @@ typedef struct
 inter_buf_type;
 
 
-typedef U8 tp_timer_type;
+typedef  S16   ms_timer_type;
+
+
+/*Network layer timing parameter type.it can be used for both sender and receiver.*/
+typedef struct
+{
+	ms_timer_type    A;  //Time for transmission of the CAN frame.Start:LData.request, End: LData.confirm
+	ms_timer_type    B; 
+	ms_timer_type    C;
+}
+timing_parameter_type;
+
+
+
+
 
 /*Active tp connection task type.It is used in multi-frames RX and TX.*/
 typedef struct
 {
-	U8                    channel_idx;
-	tp_conn_state_type    conn_state;
-	tp_timer_type         as_cnt;  
-	U32                   req_tx_dl;
+	U8                     channel_idx;
+	tp_conn_state_type     conn_state; 
+	U32                    req_tx_dl;
+	timing_parameter_type  timer;
 }
 tp_conn_type;
 
@@ -228,6 +256,11 @@ void cantp_main_function(void)
 	U8 ff_sdu_data_size;
 	U8 sdu_data_offset;
 
+	/*-------------Polling Rx------------------------*/
+	//TODO: if cycle polling rx mode is enable, add polling handle funciton here.
+
+
+
 	for (i = 0; i < MAX_CONNECTION_NUM; i++)
 	{
 		channel_idx = cantp_conn_cb[i].channel_idx;
@@ -241,6 +274,9 @@ void cantp_main_function(void)
 			{
 				/*call lower layer driver to transmit can frame.*/
 				cantp_conn_cb[i].conn_state = TP_CONN_WAIT_SF_TX_CONFIRM;
+				/*Start timer As*/
+				cantp_conn_cb[i].timer.A = 0;
+
 				can_fmr_tx_callout(tp_channel_ref[channel_idx].can_id, segment_tx_buffer.tx_buffer, cantp_conn_cb[i].req_tx_dl);
 			}
 			else
@@ -248,6 +284,22 @@ void cantp_main_function(void)
 				/*Copy data filed ,confirm to upper layer*/
 				tp_channel_ref[channel_idx].tx_confirmation_func(CANTP_R_ERROR);
 			}
+			break;
+		case TP_CONN_WAIT_SF_TX_CONFIRM:
+
+			cantp_conn_cb[i].timer.A += MAIN_FUNC_PERIOD;
+			
+			if (cantp_conn_cb[i].timer.A >= tp_channel_ref[channel_idx].A_TO)
+			{
+				RELEAS_CONNECTION(i);
+				tp_channel_ref[channel_idx].tx_confirmation_func(CANTP_R_TIMEOUT_A);
+
+			}
+			else
+			{
+				//continue wait SF confirmation..
+			}
+
 			break;
 		case TP_CONN_WAIT_FF_TX:
 
@@ -400,14 +452,24 @@ void cantp_tx_confirmation(U32 canid, U8 result)
 {	
 	U8 channel_idx;
 	U8 conn_idx;
-
+	tp_conn_state_type* tmp_conn_state_ptr;
 	channel_idx = get_channel_idx_by_channel_id(canid);
 
 	conn_idx = get_active_conn_idx_by_channel_idx(channel_idx);
+
+	tmp_conn_state_ptr = &cantp_conn_cb[conn_idx].conn_state;
 	/**/
-	if (cantp_conn_cb[conn_idx].conn_state == TP_CONN_WAIT_SF_TX_CONFIRM)
+	if (*tmp_conn_state_ptr == TP_CONN_WAIT_SF_TX_CONFIRM)
 	{
+		/*SF transmit success,confirm to upper layer!*/
 		cantp_channel_cfgs[channel_idx].tx_confirmation_func(CANTP_R_OK);
+	}
+	else if(*tmp_conn_state_ptr == TP_CONN_WAIT_FF_TX_CONFIRM)
+	{
+		*tmp_conn_state_ptr = TP_CONN_WAIT_FC_RX;
+
+		//TODO: start Bs timer .
+
 	}
 
 

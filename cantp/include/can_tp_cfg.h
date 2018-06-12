@@ -63,6 +63,8 @@
 #define   CANTP_STATIC_CHANNELS_NUM         1
 
 
+
+
 //#define   CANTP_CAN_FRAME_OPTIM
 
 /**********************************************************************************************************************
@@ -79,6 +81,7 @@ typedef struct
 	U8  data_len;     //payload length of the first frame or single frame
 }ul_pdu_info_type;
 
+typedef  S16   ms_timer_type;
 
 typedef U8  (*ul_request_rx_buffer_func_type)( U32, U32* );
 typedef U8  (*ul_copy_rx_data_func_type)(const U8*, U32,U32* remain_buf_size_ptr);
@@ -98,6 +101,12 @@ typedef struct
 
 	U8									TX_DL;    //CAN_TX_DL
 	U8                                  ext_addr_flag;
+
+	ms_timer_type                       A_TO;     //Timeout value for CAN frame transmission.
+	ms_timer_type                       BS_TO;    //Timeout value of waiting time for next flow control frame.
+	ms_timer_type                       CR_TO;    //Timeout value of waiting time for nett consecutive  frame.
+
+
 	ul_request_rx_buffer_func_type        req_rx_buf_func;
 	ul_copy_rx_data_func_type             copy_rx_data_func;
 	ul_rx_indication_func_type            rx_indication_func;

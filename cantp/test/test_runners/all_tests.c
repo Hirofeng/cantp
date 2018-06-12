@@ -3,7 +3,7 @@
 static void RunAllTests(void)
 {
   RUN_TEST_GROUP(TpSingleFrame);
-  //RUN_TEST_GROUP(ProductionCode2);
+  //RUN_TEST_GROUP(TpMultiFrame);
 }
 
 int main(int argc, const char * argv[])
