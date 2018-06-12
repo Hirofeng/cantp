@@ -15,10 +15,17 @@ TEST_SETUP(TpSingleFrame)
 {
   //This is run before EACH TEST
   //Counter = 0x5a5a;
+	cantp_init();
 }
 
 TEST_TEAR_DOWN(TpSingleFrame)
 {
+}
+
+TEST(TpSingleFrame, TestSFReceptionFlow)
+{
+
+	can_driver_sf_rx_isr_2();
 }
 
 TEST(TpSingleFrame, TestSFDataLength)
@@ -31,6 +38,22 @@ TEST(TpSingleFrame, TestSFDataLength)
  // TEST_ASSERT_EQUAL(0, FindFunction_WhichIsBroken(-1));
 }
 
+
+TEST(TpSingleFrame, TestSFTransmission)
+{
+	dcm_tmp_transmit_response(6);
+	
+	cantp_main_function();
+
+}
+
+
+TEST(TpSingleFrame, TestFFTransmission)
+{
+	dcm_tmp_transmit_response(20);
+
+	cantp_main_function();
+}
 #if 0
 
 TEST(ProductionCode, FindFunction_WhichIsBroken_ShouldReturnTheIndexForItemsInList_WhichWillFailBecauseOurFunctionUnderTestIsBroken)

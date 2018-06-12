@@ -58,8 +58,10 @@
 typedef enum
 {
 	TP_CONN_IDLE = 0,
-	TP_CONN_RX,
-	TP_CONN_TX,
+	TP_CONN_WAIT_SF_TX,
+	TP_CONN_WAIT_SF_TX_CONFIRM,
+	TP_CONN_WAIT_FF_TX,
+	TP_CONN_WAIT_FF_TX_CONFIRM
 
 }
 tp_conn_state_type;
@@ -71,9 +73,17 @@ tp_conn_state_type;
 
 /*----------Macro const-----------*/
 
+#define MODULE_DEBUG
+#ifdef  MODULE_DEBUG
+#define  STATIC 
+#else 
+#define STATIC  static
+
+#endif
 
 #define INVALID_CHANNEL_INDEX         0xFFu
 #define INVALID_CHANNEL_ID            INVALID_CHANNEL_INDEX
+#define INVALID_CONNECTION_INDEX      0xFFu
 
 #define PCI_BYTE_MASK				  0xF0u
 #define PCI_SF                        0x00u
@@ -85,7 +95,18 @@ tp_conn_state_type;
 #define CLASSIC_SF_DL_MASK			  0x0Fu
 #define FLEXRATE_SF_DL_MASK
 
+
+#define MAX_CONNECTION_NUM             3
+
 /*----------Local data struct-----------*/
+
+typedef struct
+{
+	U8 tx_buffer[64];
+	U8 tx_data_size;
+}
+inter_buf_type;
+
 
 typedef U8 tp_timer_type;
 
@@ -94,7 +115,8 @@ typedef struct
 {
 	U8                    channel_idx;
 	tp_conn_state_type    conn_state;
-	tp_timer_type         as_cnt;   
+	tp_timer_type         as_cnt;  
+	U32                   req_tx_dl;
 }
 tp_conn_type;
 
@@ -104,10 +126,11 @@ tp_conn_type;
 /**/
 
 
-static U8 dlc_comparison_tbl[16] = { 0,1,2,3,4,5,6,7,8,12,16,20,24,32,48,64 };
+static  U8 dlc_comparison_tbl[16] = { 0,1,2,3,4,5,6,7,8,12,16,20,24,32,48,64 };
+STATIC cantp_channel_cfg_type*  tp_channel_ref;
 
-static cantp_channel_cfg_type*  tp_channel_ref;
-
+STATIC tp_conn_type cantp_conn_cb[MAX_CONNECTION_NUM];
+STATIC inter_buf_type   segment_tx_buffer;
 /*******************************************************************************************************************/
 /*  Version check (generated data)                                                                                 */
 /*******************************************************************************************************************/
@@ -123,11 +146,19 @@ static cantp_channel_cfg_type*  tp_channel_ref;
 **********************************************************************************************************************/
 extern cantp_channel_cfg_type  cantp_channel_cfgs[CANTP_STATIC_CHANNELS_NUM];
 /*******************************************************************************************************************/
+/*  external  prototypes                                                                                            */
+/*******************************************************************************************************************/
+void can_fmr_tx_callout(U32 can_id, U8* data_ptr, U8 data_size);
+
+/*******************************************************************************************************************/
 /*  local prototypes                                                                                               */
 /*******************************************************************************************************************/
-
-static U8 get_channel_idx_by_can_id(U32  can_id);
-static void tp_sf_rx_handle(U8 channel_idx, U8 dlc, U8* pci_ptr);
+STATIC  U8 check_sf_dl(U8 can_dl, U8 sf_dl, BOOL ext_addr_flag);
+STATIC  U8 get_channel_idx_by_canid(U32  can_id);
+STATIC  U8 tp_sf_rx_handle(U8 channel_idx, U8 dlc, U8* pci_ptr);
+STATIC  U8 get_channel_idx_by_channel_id(U8 channel_id);
+STATIC  U8 get_idle_conn(void);
+STATIC  U8 get_active_conn_idx_by_channel_idx(U8 channel_idx);
 /***********************************************************************************************************************
 | NAME:  XXX_example()
 **********************************************************************************************************************/
@@ -143,6 +174,244 @@ static void tp_sf_rx_handle(U8 channel_idx, U8 dlc, U8* pci_ptr);
 *  \synchronous TRUE
 *  \config      CANIF_TRANSMIT_BUFFER_PRIO_BY_CANID == STD_ON || CANIF_TRANSMIT_BUFFER_FIFO == STD_ON
 **********************************************************************************************************************/
+/***********************************************************************************************************************
+| NAME:  cantp_init()
+**********************************************************************************************************************/
+/*! \brief     Indicates a CAN(FD) frame reception.
+*  \details    This func. can be called either by ISR or CANTP mainfunction.
+*  \param[in]
+*  \return
+*
+*  \pre
+*
+*  \context
+*  \reentrant
+*  \synchronous
+*  \config
+**********************************************************************************************************************/
+
+U8 cantp_init(void)
+{
+	U8 i, result = CANTP_E_OK;
+
+	tp_channel_ref = cantp_channel_cfgs;
+
+	for (i = 0; i < MAX_CONNECTION_NUM; i++)
+	{
+		cantp_conn_cb[i].conn_state = TP_CONN_IDLE;
+
+	}
+	return result;
+
+}
+/***********************************************************************************************************************
+| NAME:  cantp_rx_indication()
+**********************************************************************************************************************/
+/*! \brief     Indicates a CAN(FD) frame reception.
+*  \details    This func. can be called either by ISR or CANTP mainfunction.
+*  \param[in]
+*  \return
+*
+*  \pre
+*
+*  \context
+*  \reentrant
+*  \synchronous
+*  \config
+**********************************************************************************************************************/
+void cantp_main_function(void)
+{
+	U8 i;
+	U8 channel_idx;
+	U32 remain_tx_buffer_size;
+	U8 result;
+	U8 ff_sdu_data_size;
+	U8 sdu_data_offset;
+
+	for (i = 0; i < MAX_CONNECTION_NUM; i++)
+	{
+		channel_idx = cantp_conn_cb[i].channel_idx;
+		switch (cantp_conn_cb[i].conn_state)
+		{
+		case TP_CONN_WAIT_SF_TX:
+	
+			result = tp_channel_ref[channel_idx].copy_tx_data_func(segment_tx_buffer.tx_buffer, cantp_conn_cb[i].req_tx_dl,NULL_PTR);
+			
+			if (result == CANTP_E_OK)
+			{
+				/*call lower layer driver to transmit can frame.*/
+				cantp_conn_cb[i].conn_state = TP_CONN_WAIT_SF_TX_CONFIRM;
+				can_fmr_tx_callout(tp_channel_ref[channel_idx].can_id, segment_tx_buffer.tx_buffer, cantp_conn_cb[i].req_tx_dl);
+			}
+			else
+			{
+				/*Copy data filed ,confirm to upper layer*/
+				tp_channel_ref[channel_idx].tx_confirmation_func(CANTP_R_ERROR);
+			}
+			break;
+		case TP_CONN_WAIT_FF_TX:
+
+			if (tp_channel_ref[channel_idx].TX_DL == 8)
+			{
+				ff_sdu_data_size = 6 - tp_channel_ref[channel_idx].ext_addr_flag;
+
+				/*TX_DL=8, FF pci format*/
+				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag] = ((cantp_conn_cb[i].req_tx_dl & 0x0F00) >> 8)| 0x10;
+				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag + 1] = cantp_conn_cb[i].req_tx_dl & 0xFF;
+
+				sdu_data_offset = 2 + tp_channel_ref[channel_idx].ext_addr_flag;
+			}
+			else
+			{
+				ff_sdu_data_size = tp_channel_ref[channel_idx].TX_DL - tp_channel_ref[channel_idx].ext_addr_flag-6;
+
+				/*TX_DL>8, FF pci format*/
+				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag] = 0x10;
+				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag+1] = 0x00;
+				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag + 2] = (cantp_conn_cb[i].req_tx_dl & 0xFF000000)>>24;
+				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag + 3] = (cantp_conn_cb[i].req_tx_dl & 0x00FF0000) >> 16;
+				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag + 4] = (cantp_conn_cb[i].req_tx_dl & 0x0000FF00) >> 8;
+				segment_tx_buffer.tx_buffer[tp_channel_ref[channel_idx].ext_addr_flag + 5] = (cantp_conn_cb[i].req_tx_dl & 0x000000FF) ;
+				sdu_data_offset = 6 + tp_channel_ref[channel_idx].ext_addr_flag;
+			}
+
+			result = tp_channel_ref[channel_idx].copy_tx_data_func(segment_tx_buffer.tx_buffer+ sdu_data_offset, ff_sdu_data_size, NULL_PTR);
+
+			if (result == CANTP_E_OK)
+			{
+				/**/
+				cantp_conn_cb[i].conn_state = TP_CONN_WAIT_FF_TX_CONFIRM;
+				can_fmr_tx_callout(tp_channel_ref[channel_idx].can_id, segment_tx_buffer.tx_buffer, tp_channel_ref[channel_idx].TX_DL);
+			}
+			else
+			{
+				/*Copy data filed ,confirm to upper layer*/
+				tp_channel_ref[channel_idx].tx_confirmation_func(CANTP_R_ERROR);
+			}
+
+			break;
+
+		default:
+			break;
+		}
+
+
+
+
+
+	}
+
+
+
+
+
+}
+
+
+
+
+
+/***********************************************************************************************************************
+| NAME:  cantp_rx_indication()
+**********************************************************************************************************************/
+/*! \brief     Indicates a CAN(FD) frame reception.
+*  \details    This func. can be called either by ISR or CANTP mainfunction.
+*  \param[in]
+*  \return
+*
+*  \pre
+*
+*  \context
+*  \reentrant
+*  \synchronous
+*  \config
+**********************************************************************************************************************/
+
+U8 cantp_transmit(U8 channel_id, U32  req_dl)
+{
+	U8 channel_idx;
+	U8 result = CANTP_E_NOT_OK;
+	U8 tx_dl;
+	U8 ext_addr_flg;
+	U8 conn_idx;
+	if ((channel_idx = get_channel_idx_by_channel_id(channel_id)) != INVALID_CHANNEL_INDEX)
+	{
+		ext_addr_flg = (tp_channel_ref[channel_idx].ext_addr_flag) & 0x01;
+		tx_dl = tp_channel_ref[channel_idx].TX_DL;
+
+		conn_idx = get_idle_conn();
+		if (conn_idx == INVALID_CONNECTION_INDEX)
+		{
+			result = CANTP_E_NOT_OK;
+		}
+		else
+		{
+			cantp_conn_cb[conn_idx].channel_idx = channel_idx;
+			cantp_conn_cb[conn_idx].req_tx_dl = req_dl;
+
+			if (((tx_dl == 8) && ((req_dl + ext_addr_flg + 1) <= tx_dl)) || \
+				((req_dl + ext_addr_flg + 2) <= tx_dl))
+			{
+				/*SF data length judgement:
+				1.if TX_DL =8, max. request data length is 7 or 6(with extended or mix address);
+				2.if TX_DL>8, max.request data length is (TX_DL-2) or (TX_DL-3 with extended or mix address
+				*/
+				cantp_conn_cb[conn_idx].conn_state = TP_CONN_WAIT_SF_TX;
+				
+			}
+			else
+			{
+				cantp_conn_cb[conn_idx].conn_state = TP_CONN_WAIT_FF_TX;
+				/*multi-frames transmission:*/
+
+			}
+			result = CANTP_E_OK;
+		}
+		
+		
+	}
+	else
+	{
+		/*Not supported channel id*/
+		result = CANTP_E_NOT_OK;
+
+	}
+
+	return result;
+}
+
+/***********************************************************************************************************************
+| NAME:  cantp_rx_indication()
+**********************************************************************************************************************/
+/*! \brief     Indicates a CAN(FD) frame reception.
+*  \details    This func. can be called either by ISR or CANTP mainfunction.
+*  \param[in]
+*  \return
+*
+*  \pre
+*
+*  \context
+*  \reentrant
+*  \synchronous
+*  \config
+**********************************************************************************************************************/
+
+void cantp_tx_confirmation(U32 canid, U8 result)
+{	
+	U8 channel_idx;
+	U8 conn_idx;
+
+	channel_idx = get_channel_idx_by_channel_id(canid);
+
+	conn_idx = get_active_conn_idx_by_channel_idx(channel_idx);
+	/**/
+	if (cantp_conn_cb[conn_idx].conn_state == TP_CONN_WAIT_SF_TX_CONFIRM)
+	{
+		cantp_channel_cfgs[channel_idx].tx_confirmation_func(CANTP_R_OK);
+	}
+
+
+}
 
 
 /***********************************************************************************************************************
@@ -160,7 +429,6 @@ static void tp_sf_rx_handle(U8 channel_idx, U8 dlc, U8* pci_ptr);
 *  \synchronous 
 *  \config      
 **********************************************************************************************************************/
-
 void  cantp_rx_indication(U32 canid, U8 dlc, U8* data_ptr)
 {
 	U8 rx_data_len;
@@ -182,7 +450,7 @@ void  cantp_rx_indication(U32 canid, U8 dlc, U8* data_ptr)
 	/*---------------Check valid CANTP channel---------------------*/
 	//TODO: pci_offset = 1 in extended or mixed 
 	//TODO: get channel index channel_idx = ?
-
+	channel_idx = get_channel_idx_by_canid(canid);
 	/*---------------Verify received CAN frames--------------------*/
 	pci_type = (*(data_ptr + pci_offset)) & PCI_BYTE_MASK;
 
@@ -212,7 +480,7 @@ void  cantp_rx_indication(U32 canid, U8 dlc, U8* data_ptr)
 }
 
 /*SF_DL check*/
-U8 check_sf_dl(U8 can_dl, U8 sf_dl, BOOL ext_addr_flag)
+STATIC U8 check_sf_dl(U8 can_dl, U8 sf_dl, BOOL ext_addr_flag)
 {
 	U8 result = CANTP_E_OK;
 	U8 address_scheme_tbl[] = { 8,10,11,14,15,18,19,22,23,30,31,46,47,62 };
@@ -273,10 +541,11 @@ U8 check_sf_dl(U8 can_dl, U8 sf_dl, BOOL ext_addr_flag)
 
 
 /*Execute single frame reception process.*/
-static U8 tp_sf_rx_handle(U8 channel_idx, U8 dlc, U8* pci_ptr)
+STATIC U8 tp_sf_rx_handle(U8 channel_idx, U8 dlc, U8* pci_ptr)
 {
 	U8 sf_dl;
-	U8 result;
+	U8 result = CANTP_E_OK, mem_req_result;
+	U32 mem_req_dl,mem_remain_size;
 	U8 ext_addr_flag;
 	U8* n_sdu_ptr;
 	/*1. Get SF_DL value*/
@@ -289,7 +558,7 @@ static U8 tp_sf_rx_handle(U8 channel_idx, U8 dlc, U8* pci_ptr)
 		}
 		else
 		{
-			return; // Ignore reception of frame with error SF_DL format.
+			return result; // Ignore reception of frame with error SF_DL format.
 		}
 	}
 	else
@@ -306,8 +575,20 @@ static U8 tp_sf_rx_handle(U8 channel_idx, U8 dlc, U8* pci_ptr)
 
 	if (result == CANTP_E_OK)
 	{
+		/*Request rx data memory from upper layer.*/
+		mem_req_result = tp_channel_ref[channel_idx].req_rx_buf_func(sf_dl,&mem_req_dl);
+		if ((mem_req_result == CANTP_E_OK) && (mem_req_dl >= sf_dl))
+		{
+			/*Enough memory size can be provided by upper layer.*/
+			tp_channel_ref[channel_idx].copy_rx_data_func(n_sdu_ptr, sf_dl, &mem_remain_size);
 
+			tp_channel_ref[channel_idx].rx_indication_func(CANTP_R_OK);
 
+		}
+		else
+		{
+			result = CANTP_E_NOT_OK;
+		}
 
 	}
 	else
@@ -320,8 +601,40 @@ static U8 tp_sf_rx_handle(U8 channel_idx, U8 dlc, U8* pci_ptr)
 }
 
 
-static U8 get_channel_idx_by_canid(U32  canid)
+STATIC U8 get_channel_idx_by_canid(U32  canid)
 {
 	//TODO
-	
+	return 0;
+}
+
+
+STATIC U8 get_channel_idx_by_channel_id(U8 channel_id)
+{
+	return 0;
+}
+
+STATIC U8 get_idle_conn(void)
+{
+	U8 i,conn_idx = INVALID_CONNECTION_INDEX;
+	for (i = 0; i<MAX_CONNECTION_NUM;i++)
+	{
+
+		if (cantp_conn_cb[i].conn_state == TP_CONN_IDLE)
+		{
+			conn_idx = i;
+			break;
+		}
+	}
+
+	return conn_idx;
+
+}
+
+STATIC U8 get_active_conn_idx_by_channel_idx(U8 channel_idx)
+{
+
+	//TODO
+
+	return 0;
+
 }

@@ -75,8 +75,13 @@ cantp_channel_cfg_type  cantp_channel_cfgs[CANTP_STATIC_CHANNELS_NUM] =
 {
 	{
 		0,
-		8,
+		16,
+		0,
 		dcm_tmp_request_rx_buffer,
+		dcm_tmp_copy_rx_data,
+		dcm_tmp_rx_indication,
+		dcm_tmp_coyp_tx_data,
+		dcm_tmp_tx_confirmation,
 		0x720
 	}
 	

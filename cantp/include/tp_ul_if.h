@@ -71,7 +71,18 @@
 *********************************************************************************************************************/
 U8 dcm_tmp_request_rx_buffer(U32 total_size, U32* buffer_size_ptr);
 
+U8 dcm_tmp_copy_rx_data(const U8 * sdu_ptr, U32 sdu_len, U32* remain_buf_size_ptr);
 
+void print_dcm_tmp_rx_data(void);
+
+void dcm_tmp_rx_indication(U8 rx_result);
+
+U8  dcm_tmp_coyp_tx_data(U8* tx_buf_ptr, U32 tx_data_size, U32* remain_tx_buf_size_ptr);
+
+
+void dcm_tmp_tx_confirmation(U8 result);
+
+void dcm_tmp_transmit_response(U32 data_size);
 /**********************************************************************************************************************
 *  END OF FILE:
 *********************************************************************************************************************/

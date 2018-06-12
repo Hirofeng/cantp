@@ -34,6 +34,11 @@
 /*******************************************************************************************************************/
 #include "can_tp.h"
 
+#ifdef WIN32_DEBUG
+#include <stdio.h>
+#include <string.h>
+
+#endif
 
 /*******************************************************************************************************************/
 /*  Version check                                                                                                  */
@@ -108,6 +113,15 @@
 **********************************************************************************************************************/
 
 #define TMP_DCM_RX_BUF_SIZE   5000
+#define TMP_DCM_TX_BUF_SIZE   6000
+U8  dcm_rx_buf[TMP_DCM_RX_BUF_SIZE] = {0};
+U32 dcm_rx_buf_idx = 0;
+
+U8 dcm_tx_buf[TMP_DCM_TX_BUF_SIZE] = { 0 };
+U32 dcm_tx_buf_idx = 0;
+U32 dcm_req_data_size = 6;
+
+
 
 U8 dcm_tmp_request_rx_buffer(U32 total_size, U32* buffer_size_ptr)
 {
@@ -115,8 +129,9 @@ U8 dcm_tmp_request_rx_buffer(U32 total_size, U32* buffer_size_ptr)
 
 	if (total_size <= TMP_DCM_RX_BUF_SIZE)
 	{
-		*buffer_size_ptr = TMP_DCM_RX_BUF_SIZE;
-
+		dcm_rx_buf_idx = 0;
+		*buffer_size_ptr = TMP_DCM_RX_BUF_SIZE - dcm_rx_buf_idx;
+		
 	}
 	else
 	{
@@ -128,4 +143,136 @@ U8 dcm_tmp_request_rx_buffer(U32 total_size, U32* buffer_size_ptr)
 
 
 
+}
+
+
+U8 dcm_tmp_copy_rx_data(const U8 * sdu_ptr, U32 sdu_len, U32* remain_buf_size_ptr)
+{
+	U32 i;
+	for (i = 0; i < sdu_len; i++)
+	{
+		dcm_rx_buf[i + dcm_rx_buf_idx] = *(sdu_ptr + i);
+		
+	}
+	dcm_rx_buf_idx += sdu_len;
+	if (dcm_rx_buf_idx < TMP_DCM_RX_BUF_SIZE)
+	{
+		*remain_buf_size_ptr = TMP_DCM_RX_BUF_SIZE - dcm_rx_buf_idx;
+	}
+	else
+	{
+		*remain_buf_size_ptr = 0;
+	}
+
+	return CANTP_E_OK;
+}
+
+void print_dcm_tmp_rx_data(void)
+{
+	U32 i;
+
+	if (dcm_rx_buf_idx == 0)
+	{
+		printf("No data received in DCM rx buffer!\n");
+	}
+	else
+	{
+		printf("DCM received buffer data: ");
+		for (i = 0; i < dcm_rx_buf_idx; i++)
+		{
+			printf(" %x ", dcm_rx_buf[i]);
+		}
+
+	}
+}
+
+
+void dcm_tmp_rx_indication(U8 rx_result)
+{
+	printf("CAN TP rx indication generated: ");
+	switch (rx_result)
+	{
+	    case CANTP_R_OK:
+		printf("CANTP_R_OK:\n");
+		print_dcm_tmp_rx_data();
+		break;
+	}
+
+}
+
+U8  dcm_tmp_coyp_tx_data(U8* tx_buf_ptr, U32 tx_data_size, U32* remain_tx_buf_size_ptr)
+{
+	U8 result;
+
+	if ((dcm_req_data_size - dcm_tx_buf_idx) >= tx_data_size)
+	{
+
+		memcpy((U8*)tx_buf_ptr, (U8*)(dcm_tx_buf + dcm_tx_buf_idx), tx_data_size);
+
+		dcm_tx_buf_idx += tx_data_size;
+		if (remain_tx_buf_size_ptr != NULL_PTR)
+		{
+			*remain_tx_buf_size_ptr = dcm_req_data_size - dcm_tx_buf_idx;
+		}
+		result = CANTP_E_OK;
+	}
+	else
+	{
+
+		result = CANTP_E_NOT_OK;
+	}
+
+
+	return result;
+
+}
+
+
+
+void dcm_tmp_tx_confirmation(U8 result)
+{
+	if (result == CANTP_R_OK)
+	{
+#ifdef WIN32_DEBUG
+
+		printf("DCM reponse  transmittion success!");
+
+#endif
+	}
+	else
+	{
+#ifdef WIN32_DEBUG
+
+		printf("DCM reponse transmittion failed!");
+
+#endif
+
+	}
+}
+
+void dcm_tmp_transmit_response(U32 data_size)
+{
+	U32 i;
+
+	dcm_tx_buf_idx = 0;
+	dcm_req_data_size = data_size;
+
+	for (i = 0; i < dcm_req_data_size;i++)
+	{
+		dcm_tx_buf[i] = i+1;
+	}
+
+	cantp_transmit(0, dcm_req_data_size);
+
+#ifdef WIN32_DEBUG
+	printf("DCM request to transmit reponse data, data size: %d, data: ", dcm_req_data_size);
+
+	for (i = 0; i < dcm_req_data_size; i++)
+	{
+		printf(" %2X ", dcm_tx_buf[i]);
+	}
+	printf("\n");
+
+#endif
+	
 }

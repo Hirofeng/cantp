@@ -21,9 +21,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\cantp\src\can_driver_callout.c">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="..\cantp\src\can_link_if.c">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -50,6 +47,9 @@
     </ClCompile>
     <ClCompile Include="..\cantp\test\TestSingleFrameCode.c">
       <Filter>源文件\test</Filter>
+    </ClCompile>
+    <ClCompile Include="..\cantp\src\can_driver_callout.c">
+      <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

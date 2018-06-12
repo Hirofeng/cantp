@@ -14,7 +14,7 @@ typedef  unsigned short  U16;
 typedef  unsigned char  BOOL;
 
 
-
+#define NULL_PTR   ((void*) 0)
 
 
 

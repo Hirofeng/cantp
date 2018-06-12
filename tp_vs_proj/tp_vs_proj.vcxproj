@@ -78,6 +78,9 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>C:\Users\admin\Documents\project\AdvCodeLib\tp15765\vs_proj\tp_vs_proj\cantp\include;C:\Users\admin\Documents\project\AdvCodeLib\tp15765\vs_proj\tp_vs_proj\cantp\cfg;C:\Users\admin\Documents\project\unity\Unity-master\extras\fixture\src;C:\Users\admin\Documents\project\unity\Unity-master\src;C:\Users\admin\Documents\project\AdvCodeLib\tp15765\vs_proj\tp_vs_proj\cantp\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>

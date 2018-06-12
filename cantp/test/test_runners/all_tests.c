@@ -8,5 +8,8 @@ static void RunAllTests(void)
 
 int main(int argc, const char * argv[])
 {
-  return UnityMain(argc, argv, RunAllTests);
+	UnityMain(argc, argv, RunAllTests);
+	getchar();
+	return 0;
+
 }
