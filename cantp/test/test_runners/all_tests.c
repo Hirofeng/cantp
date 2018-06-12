@@ -2,8 +2,8 @@
 
 static void RunAllTests(void)
 {
-  RUN_TEST_GROUP(TpSingleFrame);
-  //RUN_TEST_GROUP(TpMultiFrame);
+ //RUN_TEST_GROUP(TpSingleFrame);
+  RUN_TEST_GROUP(TpMultiFrame);
 }
 
 int main(int argc, const char * argv[])

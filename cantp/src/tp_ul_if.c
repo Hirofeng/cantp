@@ -237,16 +237,20 @@ void dcm_tmp_tx_confirmation(U8 result)
 	{
 		case CANTP_R_OK:
 
-		printf("DCM transmittion result: CANTP_R_OK !");
+		printf("DCM transmittion result: CANTP_R_OK ! \n");
 		break;
 
 		case CANTP_R_ERROR:
-		printf("DCM transmittion result: CANTP_R_ERROR !");
+		printf("DCM transmittion result: CANTP_R_ERROR !\n");
 			break;
 
 		case CANTP_R_TIMEOUT_A:
-			printf("DCM transmittion result: CANTP_R_TIMEOUT_A !");
+			printf("DCM transmittion result: CANTP_R_TIMEOUT_A !\n");
 
+			break;
+
+		case CANTP_R_TIMEOUT_BS:
+			printf("DCM transmittion result: CANTP_R_TIMEOUT_BS !\n");
 			break;
 	}
 #endif

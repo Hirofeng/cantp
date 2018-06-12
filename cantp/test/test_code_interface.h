@@ -12,5 +12,7 @@ extern void  can_driver_sf_rx_isr_2(void);
 extern void can_fmr_rx_callout(U32 can_id, U8* data_ptr, U8 dlc);
 
 extern cantp_channel_cfg_type  cantp_channel_cfgs[CANTP_STATIC_CHANNELS_NUM];
-
+extern void  can_driver_init_disable_tx_confirm(void);
+extern void  can_driver_init_normal(void);
+extern void can_fc_rx_1(void);
 #endif

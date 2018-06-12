@@ -7,6 +7,17 @@
 TEST_GROUP(TpSingleFrame);
 TEST_GROUP(TpMultiFrame);
 
+
+void cantp_run_times(U32 cnt)
+{
+	U32 i;
+	for (i = 0; i < cnt; i++)
+	{
+		cantp_main_function();
+	}
+}
+
+
 //sometimes you may want to get at local data in a module.
 //for example: If you plan to pass by reference, this could be useful
 //however, it should often be avoided
@@ -16,6 +27,7 @@ TEST_SETUP(TpSingleFrame)
 {
   //This is run before EACH TEST
   //Counter = 0x5a5a;
+	can_driver_init_disable_tx_confirm();
 	cantp_init();
 }
 
@@ -42,11 +54,15 @@ TEST(TpSingleFrame, TestSFDataLength)
 
 TEST(TpSingleFrame, TestSFTransmission)
 {
+	U32 i = 202;
+
 	dcm_tmp_transmit_response(6);
+
+	while (i--)
+	{
+		cantp_main_function();
+	}
 	
-	cantp_main_function();
-	cantp_main_function();
-	//cantp_main_function();
 
 }
 
@@ -62,22 +78,57 @@ TEST_SETUP(TpMultiFrame)
 {
 	//This is run before EACH TEST
 	//Counter = 0x5a5a;
+	can_driver_init_normal();
 	cantp_init();
 }
 
 TEST_TEAR_DOWN(TpMultiFrame)
 {
 }
+
+TEST(TpMultiFrame, TestMultiFrameTransmission)
+{
+	dcm_tmp_transmit_response(255);
+	cantp_run_times(1);
+
+	cantp_run_times(1);
+	can_fc_rx_1();
+	cantp_run_times(5);
+
+	can_fc_rx_1();
+	cantp_run_times(5);
+
+	can_fc_rx_1();
+	cantp_run_times(5);
+
+	can_fc_rx_1();
+	cantp_run_times(5);
+
+	can_fc_rx_1();
+	cantp_run_times(5);
+
+	can_fc_rx_1();
+	cantp_run_times(5);
+	cantp_run_times(12);
+}
 TEST(TpMultiFrame, TestMultiFrameReception)
 {
+	U32 i = 202;
 	//1.请求多帧发送,data size = 20
 	dcm_tmp_transmit_response(20);
 	//2.发送第一帧 FF
 	cantp_main_function();
-	//3.接收者发送流控帧
+	//3.等待接收者发送流控帧,接收者超时未发送FC帧
+	while (i--)
+	{
+		cantp_main_function();
+	}
 
 
 }
+
+
+
 #if 0
 
 TEST(ProductionCode, FindFunction_WhichIsBroken_ShouldReturnTheIndexForItemsInList_WhichWillFailBecauseOurFunctionUnderTestIsBroken)

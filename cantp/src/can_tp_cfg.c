@@ -75,11 +75,11 @@ cantp_channel_cfg_type  cantp_channel_cfgs[CANTP_STATIC_CHANNELS_NUM] =
 {
 	{
 		0,    //Channel id
-		16,   //TX_DL
+		8,   //TX_DL
 		0,    //Extended or mix addressing format
-		10,   //Ar/As timeout
-		1000, //Bs timeout 
-		1000, //Cr timeout
+		50,   //Ar/As timeout
+		40, //Bs timeout 
+		40, //Cr timeout
 		dcm_tmp_request_rx_buffer,
 		dcm_tmp_copy_rx_data,
 		dcm_tmp_rx_indication,

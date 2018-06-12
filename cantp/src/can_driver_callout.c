@@ -2,6 +2,27 @@
 
 #include "std_types.h"
 
+
+U8 CONTROL_CODE;
+
+#define NORMAL_MODE                     0u
+#define DISABLE_TX_CONFIRMATION         1u
+
+
+void  can_driver_init_normal(void)
+{
+	CONTROL_CODE = NORMAL_MODE;
+}
+
+
+void  can_driver_init_disable_tx_confirm(void)
+{
+	CONTROL_CODE = DISABLE_TX_CONFIRMATION;
+}
+
+
+
+
 /*从CAN Driver寄存器内读取缓存的数据帧*/
 
 void can_fmr_rx_callout(U32 can_id, U8* data_ptr,U8 dlc)
@@ -27,6 +48,7 @@ void can_fmr_tx_callout(U32 can_id, U8* data_ptr,U8 data_size)
 		break;
 	case 0x20:
 		printf(" Consecutive frame ");
+
 		break;
 	case 0x30:
 		printf(" Flow control ");
@@ -43,6 +65,8 @@ void can_fmr_tx_callout(U32 can_id, U8* data_ptr,U8 data_size)
 	}
 	printf("\n");
 #endif
-
-//	cantp_tx_confirmation(0x720,CANTP_R_OK);
+	if (CONTROL_CODE == NORMAL_MODE)
+	{
+		cantp_tx_confirmation(0x720, CANTP_R_OK);
+	}
 }
